@@ -1,0 +1,116 @@
+# On a v* tag: universal build, signed with the shared "Moiz Ahmed Utilities Release" certificate,
+# zipped and released, then the Homebrew tap is updated. Tags with a hyphen (v0.1.0-rc.1) are
+# pre-releases. /install always fetches the latest release, so the site needs no redeploy.
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+      sha256: ${{ steps.zip.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: v
+        name: Version
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          case "$V" in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        timeout-minutes: 15
+        run: swift test
+
+      - name: Import the signing certificate into a temporary keychain
+        env:
+          P12: ${{ secrets.SIGNING_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.SIGNING_P12_PASSWORD }}
+        run: |
+          KC="$RUNNER_TEMP/release.keychain-db"; PASS=$(openssl rand -hex 16)
+          security create-keychain -p "$PASS" "$KC"
+          security set-keychain-settings "$KC"
+          security unlock-keychain -p "$PASS" "$KC"
+          printf %s "$P12" | base64 --decode > "$RUNNER_TEMP/id.p12"
+          security import "$RUNNER_TEMP/id.p12" -k "$KC" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/id.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$PASS" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          # Self-signed and untrusted on purpose: codesign doesn't need trust, and the designated
+          # requirement (identifier + leaf hash) is what keeps permissions across updates.
+          ID=$(security find-identity -p codesigning "$KC" | grep -m1 -oE '[0-9A-F]{40}')
+          test -n "$ID"
+          echo "IDENTITY=$ID" >> "$GITHUB_ENV"
+          echo "KEYCHAIN=$KC" >> "$GITHUB_ENV"
+
+      - name: Build (universal) and sign
+        run: |
+          scripts/make-app.sh --universal --sign "$IDENTITY" --version "${{ steps.v.outputs.version }}" \
+            --build "$GITHUB_RUN_NUMBER" --out dist
+
+      - name: Verify the signature
+        run: |
+          codesign --verify --deep --strict --verbose=2 dist/Unsaid.app
+          codesign -d -r- dist/Unsaid.app
+          lipo -archs dist/Unsaid.app/Contents/MacOS/Unsaid
+
+      - id: zip
+        name: Zip and SHA256SUMS
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent Unsaid.app Unsaid.zip
+          shasum -a 256 Unsaid.zip > SHA256SUMS
+          cat SHA256SUMS
+          echo "sha256=$(cut -d' ' -f1 SHA256SUMS)" >> "$GITHUB_OUTPUT"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRE=""; [ "${{ steps.v.outputs.prerelease }}" = true ] && PRE="--prerelease"
+          gh release create "$GITHUB_REF_NAME" dist/Unsaid.zip dist/SHA256SUMS \
+            --title "Unsaid ${{ steps.v.outputs.version }}" --generate-notes $PRE
+
+      - name: Remove the temporary keychain
+        if: always()
+        run: |
+          [ -n "${KEYCHAIN:-}" ] && security delete-keychain "$KEYCHAIN" || true
+
+  tap:
+    needs: build
+    if: needs.build.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump the cask in MoizAhmedd/homebrew-tap
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+          V: ${{ needs.build.outputs.version }}
+          SHA: ${{ needs.build.outputs.sha256 }}
+        run: |
+          test -n "$SHA"
+          sed -e "s/__VERSION__/$V/" -e "s/__SHA256__/$SHA/" -e '/^# Template\./,/^# MoizAhmedd/d' \
+            packaging/homebrew/unsaid.rb > "$RUNNER_TEMP/unsaid.rb"
+          install -m 600 /dev/null "$RUNNER_TEMP/tap_key"; printf '%s\n' "$TAP_DEPLOY_KEY" > "$RUNNER_TEMP/tap_key"
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone -q git@github.com:MoizAhmedd/homebrew-tap.git tap
+          mkdir -p tap/Casks && cp "$RUNNER_TEMP/unsaid.rb" tap/Casks/unsaid.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/unsaid.rb
+          git diff --cached --quiet || { git commit -q -m "unsaid $V"; git push -q origin main; }
+          rm -f "$RUNNER_TEMP/tap_key"

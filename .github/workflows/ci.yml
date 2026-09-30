@@ -1,0 +1,16 @@
+name: ci
+on:
+  push:
+    branches: [main]
+    paths: ["Sources/**", "Tests/**", "Package.*", ".github/workflows/ci.yml"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+      - run: scripts/make-app.sh
