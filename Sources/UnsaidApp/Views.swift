@@ -81,9 +81,9 @@ struct RevealView: View {
 
     private var subtitle: String {
         switch (reveal.dictations > 0, reveal.calls > 0) {
-        case (true, true): return "From \(reveal.dictations) dictations and \(reveal.calls) calls. Wispr tidies your text; this is how you actually talk."
+        case (true, true): return "From \(reveal.dictations) messages and \(reveal.calls) calls. Wispr tidies your text; this is how you actually talk."
         case (false, true): return "From \(reveal.calls) calls recorded by Wispr's Notetaker."
-        default: return "From \(reveal.dictations) dictations. Wispr tidies your text; this is how you actually talk."
+        default: return "From \(reveal.dictations) messages. Wispr tidies your text; this is how you actually talk."
         }
     }
 }
@@ -167,7 +167,7 @@ struct ResultsView: View {
 
     private var breakdown: String {
         var parts: [String] = []
-        if let d = results.dictation { parts.append("Dictation \(fmt(d.before)) → \(fmt(d.after))") }
+        if let d = results.dictation { parts.append("Messages \(fmt(d.before)) → \(fmt(d.after))") }
         if let c = results.calls { parts.append("Calls \(fmt(c.before)) → \(fmt(c.after))") }
         return parts.isEmpty ? "On a usual day of talking." : parts.joined(separator: " · ") + ", on a usual day."
     }

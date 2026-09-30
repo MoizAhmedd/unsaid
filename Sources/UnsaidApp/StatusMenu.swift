@@ -55,7 +55,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         case .goal(let goal, let today):
             let label = Habits.named(goal.habit)?.label ?? goal.habit
             menu.addItem(disabled("\(label) today: \(today.count)" + (today.allowance.map { " / goal \($0)" } ?? "")))
-            menu.addItem(disabled("Dictation \(today.dictation) · Calls \(today.calls) · Day \(today.day) of \(Goal.days)"))
+            menu.addItem(disabled("Messages \(today.dictation) · Calls \(today.calls) · Day \(today.day) of \(Goal.days)"))
             menu.addItem(.separator())
             if today.day >= 7 { menu.addItem(bold(action("Halfway: hear the difference", #selector(playDay1VsToday)))) }
             else { menu.addItem(action("▶ Hear day 1 vs today", #selector(playDay1VsToday))) }

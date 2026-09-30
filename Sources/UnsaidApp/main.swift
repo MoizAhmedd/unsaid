@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             noticeShown = true
             if problem == .notInstalled {
                 Windows.show("notice", NoticeView(title: "Unsaid coaches you through Wispr Flow",
-                    message: "Unsaid learns how you speak from the dictation and calls Wispr Flow keeps on this Mac. Install Wispr Flow, talk to it for a few days, then open Unsaid again.",
+                    message: "Unsaid learns how you speak from what you say to Wispr Flow and the calls it records. Install Wispr Flow, talk to it for a few days, then open Unsaid again.",
                     link: ("Get Wispr Flow", URL(string: "https://wisprflow.ai")!)))
             } else {
                 Windows.show("notice", NoticeView(title: "Wispr Flow changed",
