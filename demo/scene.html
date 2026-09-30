@@ -1,0 +1,276 @@
+<!doctype html>
+<!--
+  The Unsaid demo, drawn as a scene: render(t) paints the exact frame for time t (seconds), so
+  render.mjs can step through it frame by frame and the video comes out the same every time.
+  Open it in a browser to watch it loop. The windows copy the app's own views (Unsaid --render-reveal).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Unsaid demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; color: #1d1d1f;
+         -webkit-font-smoothing: antialiased; position: relative; background: #efe8de; }
+  #world { inset: 0; transform-origin: 0 0;
+         background: radial-gradient(1400px 900px at 20% 10%, #f3e3cf 0%, transparent 60%),
+                     radial-gradient(1200px 900px at 90% 90%, #d7e4f2 0%, transparent 60%), #efe8de; }
+  .abs { position: absolute; }
+
+  #menubar { z-index: 3; left: 0; top: 0; width: 1920px; height: 40px; background: rgba(255,255,255,.55); backdrop-filter: blur(20px);
+             display: flex; align-items: center; padding: 0 22px; font-size: 17px; gap: 26px; }
+  #menubar .right { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+  #pill { display: flex; align-items: center; gap: 6px; font-weight: 600; font-variant-numeric: tabular-nums; padding: 3px 9px; border-radius: 6px; }
+  #pill svg { width: 21px; height: 19px; }
+
+  .window { border-radius: 14px; background: #fff; box-shadow: 0 30px 80px rgba(40,30,20,.22), 0 0 0 1px rgba(0,0,0,.08); overflow: hidden; }
+  .titlebar { height: 46px; background: #f4f2ef; border-bottom: 1px solid #e3dfd9; display: flex; align-items: center; padding: 0 18px; gap: 8px; }
+  .dot { width: 13px; height: 13px; border-radius: 50%; }
+
+  /* Slack-ish chat */
+  #slack { left: 120px; top: 90px; width: 1040px; height: 860px; }
+  .side { position: absolute; left: 0; top: 46px; bottom: 0; width: 230px; background: #3f0e40; color: #d8c8d8; padding: 22px 18px; font-size: 16px; line-height: 2.1; }
+  .side b { color: #fff; }
+  .main { position: absolute; left: 230px; top: 46px; right: 0; bottom: 0; padding: 26px 34px; }
+  .msg { display: flex; gap: 14px; margin-bottom: 22px; font-size: 18px; line-height: 1.45; }
+  .av { width: 42px; height: 42px; border-radius: 9px; flex: none; }
+  .who { font-weight: 700; font-size: 16px; }
+  .compose { position: absolute; left: 34px; right: 34px; bottom: 28px; height: 96px; border: 1.5px solid #cfcac3; border-radius: 12px;
+             padding: 16px 18px; font-size: 18px; color: #9a948b; }
+
+  /* Wispr's recording pill and what you said, live */
+  #wispr { left: 50%; bottom: 150px; margin-left: -80px; width: 160px; height: 44px; border-radius: 22px; background: rgba(20,20,22,.92);
+           display: flex; align-items: center; justify-content: center; gap: 4px; z-index: 2; }
+  #wispr i { width: 5px; border-radius: 3px; background: #fff; }
+  #said { left: 0; right: 0; bottom: 214px; text-align: center; z-index: 2; }
+  #said .box { display: inline-block; max-width: 1300px; background: rgba(255,255,255,.94); border-radius: 16px; padding: 18px 26px;
+               font-size: 30px; line-height: 1.4; box-shadow: 0 16px 40px rgba(0,0,0,.14); }
+  #said .tag { display: block; font-size: 13px; font-weight: 700; letter-spacing: .08em; color: #a39d93; margin-bottom: 6px; text-align: left; }
+  #said span.w { display: inline; }
+  #said span.f { border-radius: 5px; padding: 0 3px; }
+
+  /* Unsaid's reveal window, copied from RevealView at 1.4x */
+  #reveal { left: 560px; top: 150px; width: 924px; }
+  #reveal .in { padding: 50px 56px 48px; }
+  #reveal h1 { font-size: 56px; font-weight: 700; letter-spacing: -1.4px; line-height: 1.08; }
+  #reveal h1 em { font-style: normal; color: #e8590c; }
+  #reveal .sub { font-size: 21px; color: #6e6a63; margin: 14px 0 32px; }
+  .bar { display: grid; grid-template-columns: 240px 1fr 70px; align-items: center; gap: 16px; font-size: 21px; padding: 6px 11px; margin: 0 -11px 4px; border-radius: 11px; }
+  .bar.sel { background: rgba(0,0,0,.05); }
+  .bar .b { height: 14px; border-radius: 7px; background: #ffd8a8; }
+  .bar b { text-align: right; font-variant-numeric: tabular-nums; }
+  .card { background: #f7f6f4; border: 1px solid #e8e5e0; border-radius: 17px; padding: 22px; margin: 28px 0 34px; font-size: 20px; }
+  .play { width: 48px; height: 48px; border-radius: 50%; background: #3b5bdb; display: grid; place-items: center; flex: none; }
+  .row2 { display: flex; gap: 17px; align-items: baseline; line-height: 1.45; margin-top: 12px; }
+  .tag2 { font-size: 14px; font-weight: 600; color: #b3ada4; width: 112px; flex: none; }
+  mark { background: #fff1c2; color: #1d1d1f; border-radius: 4px; padding: 0 2px; }
+  mark.on { background: #ffd24a; }
+  .cta { display: flex; align-items: center; gap: 17px; font-size: 18px; color: #6e6a63; }
+  .cta .btn { background: #3b5bdb; color: #fff; font-weight: 700; font-size: 20px; padding: 12px 20px; border-radius: 11px; }
+
+  /* The menu from the menu bar */
+  #menu { z-index: 3; right: 150px; top: 40px; width: 560px; background: rgba(250,249,247,.96); backdrop-filter: blur(30px); border-radius: 14px;
+          box-shadow: 0 18px 50px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.08); padding: 9px; font-size: 22px; }
+  #menu .it { padding: 9px 14px; border-radius: 6px; }
+  #menu .dim { color: #8b867e; }
+  #menu .hi { background: #3b5bdb; color: #fff; }
+  #menu .sep { height: 1px; background: #e2ded8; margin: 6px 10px; }
+
+  #arrow { width: 28px; height: 40px; z-index: 4; }
+  #keys { left: 0; right: 0; bottom: 56px; display: flex; justify-content: center; gap: 10px; z-index: 2; }
+  .key { min-width: 64px; height: 64px; padding: 0 16px; border-radius: 13px; background: rgba(30,30,32,.86); color: #fff; font-size: 26px;
+         display: grid; place-items: center; box-shadow: 0 8px 24px rgba(0,0,0,.25); font-weight: 500; }
+
+  #end { z-index: 5; inset: 0; background: #f6f2ea; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 34px; }
+  #end h2 { font: 400 92px/1.05 "Instrument Serif", Georgia, serif; letter-spacing: -1.5px; text-align: center; }
+  #end h2 em { color: #e8590c; }
+  #end .cmd { font: 500 34px ui-monospace, "SF Mono", Menlo, monospace; background: #1d1d1f; color: #f6f2ea; padding: 22px 34px; border-radius: 16px; }
+  #end .cmd span { color: #8a857d; }
+</style>
+</head>
+<body>
+
+<div id="menubar" class="abs">
+  <b>Slack</b><span>File</span><span>Edit</span><span>View</span><span>Window</span>
+  <div class="right">
+    <span id="pill"><svg viewBox="0 0 18 16" fill="none" stroke="#1d1d1f" stroke-width="1.5"><path d="M3 1.5h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3 .5-3H3a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z"/><path d="M5 5h8M5 8h5" stroke-linecap="round"/></svg><span id="count"></span></span>
+    <span>Wispr</span>
+    <span id="clock">Mon Sep 28&nbsp;&nbsp;9:14 AM</span>
+  </div>
+</div>
+
+<div id="world" class="abs">
+  <div id="slack" class="abs window">
+    <div class="titlebar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span></div>
+    <div class="side"><b>Northwind</b><br># general<br><b># pod-4</b><br># design<br># random</div>
+    <div class="main">
+      <div class="msg"><div class="av" style="background:#6b8afd"></div><div><div class="who">Mark</div>Which do we create first, the org or the client?</div></div>
+      <div class="msg" id="reply" style="opacity:0"><div class="av" style="background:#e8590c"></div><div><div class="who">You</div>The thing is we need the org row first, then the client.</div></div>
+      <div class="compose">Message #pod-4</div>
+    </div>
+  </div>
+
+  <div id="reveal" class="abs window">
+    <div class="in">
+      <h1>You said <em>"like" <span id="n">702</span> times</em> in 13 days.</h1>
+      <div class="sub">From 289 dictations and 8 calls. Wispr cleans them out, so you never see them.</div>
+      <div class="bar sel"><span>"like"</span><div><div class="b" id="b0"></div></div><b>702</b></div>
+      <div class="bar"><span>um / uh</span><div><div class="b" id="b1"></div></div><b>327</b></div>
+      <div class="bar"><span>"kind of"</span><div><div class="b" id="b2"></div></div><b>272</b></div>
+      <div class="card">
+        <div style="display:flex;gap:17px;align-items:center">
+          <div class="play" id="play"><svg width="17" height="19" viewBox="0 0 17 19" id="playicon"><path d="M2 1.5v16l14-8z" fill="#fff"/></svg></div>
+          <div><div style="font-weight:700">Hear your messiest one</div><div style="font-size:17px;color:#8b867e">Sep 24 · 41 s · Slack</div></div>
+        </div>
+        <div class="row2"><span class="tag2">YOU SAID</span><span id="yousaid"></span></div>
+        <div class="row2"><span class="tag2">WISPR WROTE</span><span style="color:#6e6a63">The thing is we need the org row first, then the client.</span></div>
+      </div>
+      <div class="cta"><span class="btn" id="halve">Halve it in 2 weeks</span>From about 54 a day to 27. Tracked in your menu bar.</div>
+    </div>
+  </div>
+</div>
+
+<div id="said" class="abs"><div class="box"><span class="tag">WHAT YOU SAID</span><span id="saidtext"></span></div></div>
+<div id="wispr" class="abs"></div>
+<div id="menu" class="abs">
+  <div class="it dim">"like" today: 3 / goal 9</div>
+  <div class="it dim">Dictation 3 · Calls 0 · Day 1 of 14</div>
+  <div class="sep"></div>
+  <div class="it" id="mi-play">▶ Hear day 1 vs today</div>
+  <div class="it">▶ Hear today's worst</div>
+  <div class="it">Switch habit (restarts the 2 weeks)</div>
+  <div class="sep"></div>
+  <div class="it">✓ Open at Login</div>
+  <div class="it">Quit Unsaid</div>
+</div>
+<svg id="arrow" class="abs" viewBox="0 0 28 40"><path d="M3 2v29l7.5-7 5 11.5 5-2.2-5-11.3H26z" fill="#000" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>
+<div id="keys" class="abs"></div>
+<div id="end" class="abs"><h2>The filler words Wispr hides,<br><em>counted and cut in two weeks.</em></h2><div class="cmd"><span>$</span> brew install moizahmedd/tap/unsaid</div></div>
+
+<script>
+const DURATION = 15.0;
+// Beats (seconds).
+const DICT0 = 0.4, DICT1 = 2.7, STRIKE = 2.8, PASTE = 3.4, REVEAL = 3.9, COUNT0 = 4.3, COUNT1 = 5.1,
+      PLAYCLICK = 6.1, PLAYEND = 7.7, HALVE = 8.6, CLOSED = 9.0, LATER = 9.6, MENU = 10.4, MENUEND = 12.3, END = 12.5;
+const WORDS = "So like the thing is we kind of need the org row first, and then like the client, so yeah.".split(' ');
+const FILLERS = new Set([1, 6, 7, 15, 18, 19]); // like, kind of, like, so yeah
+
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const ease = (x) => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const lerp = (a, b, x) => a + (b - a) * x;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+
+// The camera: [time, zoom, focus x, focus y]. The windows zoom; the menu bar, menu and keys don't.
+const CAMERA = [
+  [0, 1, 960, 540], [REVEAL + 0.3, 1, 960, 540],
+  [REVEAL + 0.9, 1.18, 1020, 560], [HALVE + 0.1, 1.18, 1020, 560],
+  [CLOSED + 0.2, 1, 960, 540],
+];
+function camera(t) {
+  let i = 0;
+  while (i < CAMERA.length - 1 && t >= CAMERA[i + 1][0]) i++;
+  const a = CAMERA[i], b = CAMERA[Math.min(i + 1, CAMERA.length - 1)];
+  const x = b === a ? 0 : ease(seg(t, a[0], b[0]));
+  const s = lerp(a[1], b[1], x), fx = lerp(a[2], b[2], x), fy = lerp(a[3], b[3], x);
+  const tx = clamp(960 - fx * s, 1920 - 1920 * s, 0), ty = clamp(540 - fy * s, 1080 - 1080 * s, 0);
+  return { css: `translate(${tx}px, ${ty}px) scale(${s})`, tx, ty, s };
+}
+
+// Pointer path in screen coordinates: [time, x, y]. World points are mapped through the camera.
+function pointer(t, cam) {
+  const w = (x, y) => [x * cam.s + cam.tx, y * cam.s + cam.ty];
+  const playPt = [560 + 56 + 24 + 4, 150 + 470], halvePt = [560 + 56 + 110, 150 + 745];
+  const keys = [
+    [0, 1620, 960], [REVEAL + 0.9, 1620, 960],
+    [PLAYCLICK - 0.1, ...w(...playPt)], [PLAYEND + 0.2, ...w(...playPt)],
+    [HALVE - 0.1, ...w(...halvePt)], [CLOSED + 0.3, ...w(...halvePt)],
+    [MENU - 0.15, 1640, 20], [MENU + 0.6, 1640, 20], [MENU + 0.85, 1500, 175], [MENUEND, 1500, 175],
+  ];
+  let i = 0;
+  while (i < keys.length - 1 && t >= keys[i + 1][0]) i++;
+  const a = keys[i], b = keys[Math.min(i + 1, keys.length - 1)];
+  const x = b === a ? 0 : ease(seg(t, a[0], b[0]));
+  return [lerp(a[1], b[1], x), lerp(a[2], b[2], x)];
+}
+
+let lastSaid = '', lastYou = '';
+function render(t) {
+  const cam = camera(t);
+  $('world').style.transform = cam.css;
+
+  // 1. Dictating: fn held, Wispr's pill, your words appearing.
+  const dictating = t >= DICT0 && t < DICT1;
+  const wispr = $('wispr');
+  wispr.style.display = dictating ? 'flex' : 'none';
+  if (dictating) {
+    wispr.innerHTML = Array.from({ length: 14 }, (_, i) => `<i style="height:${6 + 22 * Math.abs(Math.sin(t * 9 + i * 1.3)) * (0.4 + 0.6 * Math.abs(Math.sin(i)))}px"></i>`).join('');
+  }
+  const shown = Math.round(WORDS.length * seg(t, DICT0 + 0.1, DICT1 - 0.2));
+  const strike = seg(t, STRIKE, STRIKE + 0.35), gone = seg(t, PASTE - 0.25, PASTE);
+  const saidHTML = WORDS.slice(0, shown).map((w, i) => {
+    if (!FILLERS.has(i) || t < STRIKE) return `<span class="w">${w}</span>`;
+    return `<span class="w f" style="background:rgba(232,89,12,${0.22 * strike});color:rgba(200,60,0,${1 - gone});text-decoration:line-through ${strike > .5 ? '' : 'transparent'}">${w}</span>`;
+  }).join(' ');
+  if (saidHTML !== lastSaid) { $('saidtext').innerHTML = saidHTML; lastSaid = saidHTML; }
+  $('said').style.opacity = shown > 0 ? 1 - seg(t, PASTE, PASTE + 0.3) : 0;
+  $('reply').style.opacity = ease(seg(t, PASTE, PASTE + 0.3));
+
+  // Keys.
+  const keysEl = $('keys');
+  const keyHTML = dictating ? '<span class="key">fn</span><span class="key" style="font-size:18px;background:rgba(30,30,32,.6)">hold to talk</span>' : '';
+  if (keysEl.innerHTML !== keyHTML) keysEl.innerHTML = keyHTML;
+  keysEl.style.opacity = Math.min(seg(t, DICT0, DICT0 + 0.15), 1 - seg(t, DICT1 - 0.15, DICT1));
+
+  // 2. The reveal.
+  const rv = $('reveal');
+  const rin = ease(seg(t, REVEAL, REVEAL + 0.45)), rout = ease(seg(t, HALVE + 0.05, CLOSED));
+  rv.style.display = rin > 0 && rout < 1 ? 'block' : 'none';
+  rv.style.opacity = rin * (1 - rout);
+  rv.style.transform = `translateY(${(1 - rin) * 40}px) scale(${(0.97 + 0.03 * rin) * (1 - 0.04 * rout)})`;
+  const c = ease(seg(t, COUNT0, COUNT1));
+  $('n').textContent = Math.round(702 * c);
+  [702, 327, 272].forEach((v, i) => { $('b' + i).style.width = (100 * v / 702 * ease(seg(t, COUNT0 + i * 0.1, COUNT1 + i * 0.1))) + '%'; });
+
+  // Playing: the play button turns to pause and the words light up as they're heard.
+  const playing = t >= PLAYCLICK && t < PLAYEND;
+  $('play').style.transform = `scale(${t >= PLAYCLICK && t < PLAYCLICK + 0.15 ? 0.9 : 1})`;
+  $('playicon').innerHTML = playing ? '<rect x="2" y="1" width="4.5" height="17" rx="1" fill="#fff"/><rect x="10.5" y="1" width="4.5" height="17" rx="1" fill="#fff"/>' : '<path d="M2 1.5v16l14-8z" fill="#fff"/>';
+  const heard = playing ? Math.floor(WORDS.length * seg(t, PLAYCLICK + 0.1, PLAYEND - 0.1)) : -1;
+  const youHTML = WORDS.map((w, i) => FILLERS.has(i) ? `<mark class="${i === heard || i === heard - 1 ? 'on' : ''}">${w}</mark>` : (i <= heard ? `<span style="text-decoration:underline 2px #3b5bdb">${w}</span>` : w)).join(' ');
+  if (youHTML !== lastYou) { $('yousaid').innerHTML = youHTML; lastYou = youHTML; }
+  $('halve').style.transform = `scale(${t >= HALVE - 0.05 && t < HALVE + 0.12 ? 0.94 : 1})`;
+
+  // 3. The menu bar: the goal appears, later in the day it reads 3/9, and the menu opens.
+  const goal = t >= CLOSED;
+  $('count').textContent = !goal ? '' : t < LATER ? 'like 0' : 'like 3/9';
+  $('clock').innerHTML = t < LATER ? 'Mon Sep 28&nbsp;&nbsp;9:14 AM' : 'Mon Sep 28&nbsp;&nbsp;4:52 PM';
+  $('pill').style.background = t >= MENU && t < MENUEND ? 'rgba(0,0,0,.14)' : goal ? 'rgba(0,0,0,.06)' : 'transparent';
+  const m = $('menu');
+  m.style.display = t >= MENU && t < MENUEND ? 'block' : 'none';
+  $('mi-play').classList.toggle('hi', t >= MENU + 0.9 && t < MENUEND);
+  $('mi-play').textContent = t >= MENU + 1.2 ? '▶ Playing day 1, then today…' : '▶ Hear day 1 vs today';
+
+  // Pointer.
+  const [px, py] = pointer(t, cam);
+  const arrow = $('arrow');
+  arrow.style.left = (px - 3) + 'px'; arrow.style.top = (py - 2) + 'px';
+  arrow.style.display = t < END ? 'block' : 'none';
+
+  const end = $('end');
+  const ea = seg(t, END, END + 0.45);
+  end.style.display = ea > 0 ? 'flex' : 'none';
+  end.style.opacity = ea;
+}
+
+window.DURATION = DURATION;
+window.render = render;
+if (!location.search.includes('capture')) {
+  const t0 = performance.now();
+  (function loop() { render(((performance.now() - t0) / 1000) % (DURATION + 1)); requestAnimationFrame(loop); })();
+} else render(0);
+</script>
+</body>
+</html>
