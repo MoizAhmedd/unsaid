@@ -1,6 +1,6 @@
 # Unsaid
 
-**The filler words Wispr Flow hides, counted and cut in two weeks.** Wispr cleans "like", "kind of" and "um" out of everything you dictate, so you never see how often you say them. Unsaid does.
+**A speaking coach for Wispr Flow.** It finds the filler words you lean on ("like", "kind of", "um", "I think") in your dictation and calls, plays them back so you hear yourself, and helps you halve one in two weeks. Wispr tidies your writing; Unsaid works on how you talk.
 
 [moizahmedd.github.io/unsaid](https://moizahmedd.github.io/unsaid/)
 

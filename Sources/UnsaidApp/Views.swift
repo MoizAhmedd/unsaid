@@ -19,7 +19,7 @@ struct ExampleModel {
     let play: () -> Void
 }
 
-/// First launch: what Wispr has been hiding, your messiest dictation, and the goal button.
+/// First launch, the speaking check-up: your top habits, your messiest dictation, and the goal button.
 struct RevealView: View {
     let reveal: Coach.Reveal
     let example: ExampleModel?
@@ -38,6 +38,7 @@ struct RevealView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Text("YOUR SPEAKING CHECK-UP").font(.system(size: 11, weight: .semibold)).tracking(1).foregroundStyle(.secondary).padding(.bottom, 10)
             (Text("You said ") + Text("\(chosen.habit.label) \(chosen.total) times").foregroundColor(Palette.warn)
              + Text(" in \(reveal.days) days."))
                 .font(.system(size: 40, weight: .bold)).tracking(-1).fixedSize(horizontal: false, vertical: true)
@@ -70,7 +71,7 @@ struct RevealView: View {
                     Text("Halve it in 2 weeks").bold().padding(.horizontal, 14).padding(.vertical, 8)
                         .background(RoundedRectangle(cornerRadius: 8).fill(Palette.accent)).foregroundStyle(.white)
                 }.buttonStyle(.plain).keyboardShortcut(.defaultAction)
-                Text("From about \(perDay) a day to \(max(1, perDay / 2)). Tracked in your menu bar.")
+                Text("From about \(perDay) a day to \(max(1, perDay / 2)). Your coach lives in the menu bar.")
                     .font(.system(size: 13)).foregroundStyle(.secondary)
             }
         }
@@ -80,9 +81,9 @@ struct RevealView: View {
 
     private var subtitle: String {
         switch (reveal.dictations > 0, reveal.calls > 0) {
-        case (true, true): return "From \(reveal.dictations) dictations and \(reveal.calls) calls. Wispr cleans them out, so you never see them."
-        case (false, true): return "From \(reveal.calls) calls in Wispr's Notetaker."
-        default: return "Wispr cleaned them out, so you never saw them."
+        case (true, true): return "From \(reveal.dictations) dictations and \(reveal.calls) calls. Wispr tidies your text; this is how you actually talk."
+        case (false, true): return "From \(reveal.calls) calls recorded by Wispr's Notetaker."
+        default: return "From \(reveal.dictations) dictations. Wispr tidies your text; this is how you actually talk."
         }
     }
 }

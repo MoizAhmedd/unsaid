@@ -59,8 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .problem(let problem) where !noticeShown:
             noticeShown = true
             if problem == .notInstalled {
-                Windows.show("notice", NoticeView(title: "Unsaid needs Wispr Flow",
-                    message: "Unsaid reads the dictation history Wispr Flow keeps on this Mac. Install Wispr Flow, dictate for a few days, then open Unsaid again.",
+                Windows.show("notice", NoticeView(title: "Unsaid coaches you through Wispr Flow",
+                    message: "Unsaid learns how you speak from the dictation and calls Wispr Flow keeps on this Mac. Install Wispr Flow, talk to it for a few days, then open Unsaid again.",
                     link: ("Get Wispr Flow", URL(string: "https://wisprflow.ai")!)))
             } else {
                 Windows.show("notice", NoticeView(title: "Wispr Flow changed",
@@ -69,8 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         case .collecting(let words) where !controller.flag("revealShown") && !controller.flag("collectingShown"):
             controller.setFlag("collectingShown")
-            Windows.show("notice", NoticeView(title: "Almost ready",
-                message: "Unsaid has \(words.formatted()) of the \(Coach.minimumWords.formatted()) words it needs to find your habits. Keep using Wispr Flow; this opens again when it's ready.",
+            Windows.show("notice", NoticeView(title: "Still listening",
+                message: "Unsaid has heard \(words.formatted()) of the \(Coach.minimumWords.formatted()) words it needs to learn how you speak. Keep using Wispr Flow; your check-up opens when it's ready.",
                 link: nil))
         case .ready where !controller.flag("revealShown"):
             controller.setFlag("revealShown")
